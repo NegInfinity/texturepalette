@@ -1,4 +1,4 @@
-# Imporant
+# Important
 
 You *only* need "texture_palette.py" file from this repository and nothing else.
 README.md and LICENSE.md are provided for github and convenience only.
