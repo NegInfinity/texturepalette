@@ -183,7 +183,7 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		default = False
 	)
 	texNamePrefix: bpy.props.StringProperty(
-		name = "Prefix",
+		name = "Texture Prefix",
 		description = "Prefix used when generating texture names",
 		default = "multiTex"
 	)
@@ -191,6 +191,11 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		name = "Use Short Names",
 		description = "Use short text names (al instead of Albedo, etc)",
 		default = False
+	)
+	useLinearSpace: bpy.props.BoolProperty(
+		name = "Linear color",
+		description = "Use linear colorspace for new textures.",
+		default = True
 	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
@@ -560,7 +565,7 @@ def fillRgbaRect(image, x0, y0, xSize, ySize, r, g, b, a):
 			image.pixels[offset + 3] = a
 			offset += image.channels
 
-def adjustOrCreateTexture(tex, sizeX, sizeY, numChannels, alpha, newTexName):
+def adjustOrCreateTexture(tex, sizeX: int, sizeY: int, numChannels: int, alpha: bool, newTexName: str, linear: bool):
 	if not tex or (tex and (tex.channels != numChannels)):
 		tex = bpy.data.images.new(
 			newTexName, 
@@ -568,6 +573,8 @@ def adjustOrCreateTexture(tex, sizeX, sizeY, numChannels, alpha, newTexName):
 			height=sizeY,
 			alpha=alpha
 		)
+		if linear:
+			tex.colorspace_settings.name = 'Linear'
 	if (tex.size[0] != sizeX) or (tex.size[1] != sizeY):
 		tex.scale(sizeX, sizeY)
 	return tex
@@ -655,17 +662,20 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	albedoTexNode.image = adjustOrCreateTexture(
 		albedoTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Albedop", "al")
+		props.genTexName("Albedop", "al"),
+		props.useLinearSpace
 	)
 	metallicTexNode.image = adjustOrCreateTexture(
 		metallicTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Metallic", "met")
+		props.genTexName("Metallic", "met"),
+		True
 	)
 	emissiveTexNode.image = adjustOrCreateTexture(
 		emissiveTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Emissive", "em")
+		props.genTexName("Emissive", "em"),
+		props.useLinearSpace
 	)
 	albedoImage = albedoTexNode.image
 	metallicImage = metallicTexNode.image
@@ -761,13 +771,14 @@ class MultiTexPanel(bpy.types.Panel):
 		row = layout.row()
 		row.prop(props, "useRgbRoughness")
 		row.prop(props, "useSmoothness")
+		row.prop(props, "maxEmissionStrength")
 
-		layout.prop(props, "maxEmissionStrength")
+		layout.prop(props, "texNamePrefix")
 
 		row = layout.row()
 
-		row.prop(props, "texNamePrefix")
 		row.prop(props, "useShortTexNames")
+		row.prop(props, "useLinearSpace")
 		
 		layout.operator(MultiTexBuild.bl_idname)
 		
