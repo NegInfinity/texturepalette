@@ -189,21 +189,27 @@ class MultiTexProps(bpy.types.PropertyGroup):
 	
 	def getMatRowCol(self, matIndex: int) -> tuple[int, int]:
 		matX = matIndex % self.numColumns
-		matY = int(matIndex / self.numColumns)
+		#matY = int(matIndex / self.numColumns)
+		matY = self.numRows - 1 - int(matIndex / self.numColumns)
 		return (matX, matY)
 	
+	def getMatIndexFromRowCol(self, rowCol) -> int:
+		return rowCol[0] + (self.numRows - 1 - rowCol[1]) * self.numColumns
+		#return rowCol[0] + rowCol[1] * self.numColumns
+
 	def getMatRect(self, matIndex: int) -> tuple[int, int]:
 		return self.getRowColRect(self.getMatRowCol(matIndex))
 	
 	def getMatRectUv(self, matIndex: int) -> tuple[float, float]:
 		return self.getRowColRectUv(self.getMatRowCol(matIndex))
 
-	def getRowColRect(self, rowCol: tuple[int, int]) -> tuple[int, int]:
+	def getRowColRect(self, rowCol: tuple[int, int]) -> tuple[int, int, int, int]:
+		texSize = self.getTextureSize()
 		x0 = rowCol[0] * self.cellSize
 		y0 = rowCol[1] * self.cellSize
 		return (x0, y0, x0 + self.cellSize, y0 + self.cellSize)
 				
-	def getRowColRectUv(self, rowCol: tuple[int, int]) -> tuple[float, float]:
+	def getRowColRectUv(self, rowCol: tuple[int, int]) -> tuple[float, float, float, float]:
 		pixelRect = self.getRowColRect(rowCol)
 		sizes = self.getTextureSize()
 		return (pixelRect[0]/sizes[0], pixelRect[1]/sizes[1], 
@@ -213,9 +219,6 @@ class MultiTexProps(bpy.types.PropertyGroup):
 	def getRowColFromUv(self, uv: tuple[float, float]) -> tuple[int, int]:
 		return (int(uv[0] * self.numColumns), int(uv[1]*self.numRows))
 	
-	def getMatIndexFromRowCol(self, rowCol) -> int:
-		return rowCol[0] + rowCol[1] * self.numColumns        
-	pass
 
 def getObjectFromContext(context) -> bpy.types.Material:
 	return context.material
@@ -379,7 +382,6 @@ class MultiTexAssignMat(bpy.types.Operator):
 				continue
 			for loop in face.loops:
 				curUv = loop[uvLay].uv
-				print(curUv)
 				if not foundFaces:
 					minUv = (curUv[0], curUv[1])
 					maxUv = (curUv[0], curUv[1])
@@ -402,17 +404,15 @@ class MultiTexAssignMat(bpy.types.Operator):
 		
 		minRowCol = props.getRowColFromUv(minUv)
 		maxRowCol = props.getRowColFromUv(maxUv)
-		print(minUv, maxUv, minRowCol, maxRowCol)
-		print(minRowCol == maxRowCol)
 		
 		if minRowCol == maxRowCol:
 			print("uv reassignment")
 			origRowCol = minRowCol
 			newRowCol = props.getMatRowCol(self.index)
-			print(origRowCol, newRowCol)
+			#print(origRowCol, newRowCol)
 			origUvRect = props.getRowColRectUv(origRowCol)
 			newUvRect = props.getRowColRectUv(newRowCol)
-			print(origUvRect, newUvRect)
+			#print(origUvRect, newUvRect)
 			for face in bm.faces:
 				if not face.select:
 					continue
@@ -425,7 +425,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 						),
 						newUvRect
 					)
-					print(curUv, newUv)
+					#print(curUv, newUv)
 					loop[uvLay].uv = newUv
 				pass
 		else:
@@ -439,7 +439,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 				for loop in face.loops:
 					curUv = loop[uvLay].uv
 					newUv = applyUvRect(curUv, uvRect)
-					print(curUv, newUv)
+					#print(curUv, newUv)
 					loop[uvLay].uv = newUv
 				pass        
 		
@@ -586,11 +586,6 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	roughnessSocket = bsdfNode.inputs['Roughness']
 	alphaSocket = bsdfNode.inputs['Alpha']
 	
-	print(albedoSocket)
-	print(metallicSocket)
-	print(roughnessSocket)
-	print(alphaSocket)
-	
 	albedoTexNodeName = 'multitex_albedo'
 	metallicTexNodeName = 'multitex_metallic'
 	emissiveTexNodeName = 'multitex_emissive'    
@@ -657,24 +652,17 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	albedoImage = albedoTexNode.image
 	metallicImage = metallicTexNode.image
 	emissiveImage = emissiveTexNode.image
-		
-	print(albedoImage)
-	print(albedoImage.channels)
-	print(albedoImage.pixels)
-	
-	rectX = 0
-	rectY = 0
-	print(props.submats)
 	
 	maxNumMats = props.numColumns * props.numRows
 	
 	for matIndex in range(0, maxNumMats):
-		rectX = cellSize * (matIndex % props.numColumns)
-		rectY = cellSize * int(matIndex / props.numColumns)
+		matRect = props.getMatRect(matIndex)
+		#print(matRect)
+		rectX = matRect[0]
+		rectY = matRect[1]
 		
 		if matIndex < len(props.submats):
 			curMat = props.submats[matIndex]
-			print(rectX, rectY, curMat, curMat.albedo[0])
 			fillRgbaRect(albedoImage, 
 				rectX, rectY, cellSize, cellSize, 
 				curMat.albedo[0], curMat.albedo[1], curMat.albedo[2], curMat.alpha
