@@ -182,8 +182,23 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		description = "Use Smoothness instead of Roughness (Unity style)",
 		default = False
 	)
+	texNamePrefix: bpy.props.StringProperty(
+		name = "Prefix",
+		description = "Prefix used when generating texture names",
+		default = "multiTex"
+	)
+	useShortTexNames: bpy.props.BoolProperty(
+		name = "Use Short Names",
+		description = "Use short text names (al instead of Albedo, etc)",
+		default = False
+	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
+	def genTexName(self, longName: str, shortName: str):
+		if self.useShortTexNames:
+			return self.texNamePrefix + shortName
+		return self.texNamePrefix + longName
+
 	def getTextureSize(self) -> tuple[int, int]:
 		return (self.numColumns * self.cellSize, self.numRows * self.cellSize)
 	
@@ -639,15 +654,18 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	
 	albedoTexNode.image = adjustOrCreateTexture(
 		albedoTexNode.image, 
-		sizeX, sizeY, 4, True, "multiTexAlbedo"
+		sizeX, sizeY, 4, True, 
+		props.genTexName("Albedop", "al")
 	)
 	metallicTexNode.image = adjustOrCreateTexture(
 		metallicTexNode.image, 
-		sizeX, sizeY, 4, True, "multiTexMetallic"
+		sizeX, sizeY, 4, True, 
+		props.genTexName("Metallic", "met")
 	)
 	emissiveTexNode.image = adjustOrCreateTexture(
 		emissiveTexNode.image, 
-		sizeX, sizeY, 4, True, "multiTexEmissive"
+		sizeX, sizeY, 4, True, 
+		props.genTexName("Emissive", "em")
 	)
 	albedoImage = albedoTexNode.image
 	metallicImage = metallicTexNode.image
@@ -743,8 +761,13 @@ class MultiTexPanel(bpy.types.Panel):
 		row = layout.row()
 		row.prop(props, "useRgbRoughness")
 		row.prop(props, "useSmoothness")
-		
+
 		layout.prop(props, "maxEmissionStrength")
+
+		row = layout.row()
+
+		row.prop(props, "texNamePrefix")
+		row.prop(props, "useShortTexNames")
 		
 		layout.operator(MultiTexBuild.bl_idname)
 		
