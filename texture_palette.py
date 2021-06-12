@@ -198,7 +198,7 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		sizes = self.getTextureSize()
 		return (pixelRect[0]/sizes[0], pixelRect[1]/sizes[1], 
 			pixelRect[2]/sizes[0], pixelRect[3]/sizes[1]
-		)        
+		)
 		
 	def getRowColFromUv(self, uv):
 		return (int(uv[0] * self.numColumns), int(uv[1]*self.numRows))
@@ -660,9 +660,10 @@ def buildMultiTexMaterial(mat, props):
 				rectX, rectY, cellSize, cellSize, 
 				curMat.metallic, curMat.metallic, curMat.roughness, curMat.roughness
 			)
+			emStrength = max(0.0, min(1.0, curMat.emission_strength / props.maxEmissionStrength))
 			fillRgbaRect(emissiveImage, 
 				rectX, rectY, cellSize, cellSize, 
-				curMat.emissive[0], curMat.emissive[1], curMat.emissive[2], curMat.emission_strength
+				curMat.emissive[0], curMat.emissive[1], curMat.emissive[2], emStrength
 			)
 		else:
 			fillRgbaRect(albedoImage, rectX, rectY, cellSize, cellSize,
