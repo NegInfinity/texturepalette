@@ -172,65 +172,75 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		min = 1,
 		max = 32
 	)
+	useRgbRoughness: bpy.props.BoolProperty(
+		name = "Rgb Roughness",
+		description = "Encode metallic and roughness into RGB in this material",
+		default = True
+	)
+	useSmoothness: bpy.props.BoolProperty(
+		name = "Use Smoothness",
+		description = "Use Smoothness instead of Roughness (Unity style)",
+		default = False
+	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
-	def getTextureSize(self):
+	def getTextureSize(self) -> tuple[int, int]:
 		return (self.numColumns * self.cellSize, self.numRows * self.cellSize)
 	
-	def getMatRowCol(self, matIndex):
+	def getMatRowCol(self, matIndex: int) -> tuple[int, int]:
 		matX = matIndex % self.numColumns
 		matY = int(matIndex / self.numColumns)
 		return (matX, matY)
 	
-	def getMatRect(self, matIndex):
+	def getMatRect(self, matIndex: int) -> tuple[int, int]:
 		return self.getRowColRect(self.getMatRowCol(matIndex))
 	
-	def getMatRectUv(self, matIndex):
+	def getMatRectUv(self, matIndex: int) -> tuple[float, float]:
 		return self.getRowColRectUv(self.getMatRowCol(matIndex))
 
-	def getRowColRect(self, rowCol):        
+	def getRowColRect(self, rowCol: tuple[int, int]) -> tuple[int, int]:
 		x0 = rowCol[0] * self.cellSize
 		y0 = rowCol[1] * self.cellSize
 		return (x0, y0, x0 + self.cellSize, y0 + self.cellSize)
 				
-	def getRowColRectUv(self, rowCol):
+	def getRowColRectUv(self, rowCol: tuple[int, int]) -> tuple[float, float]:
 		pixelRect = self.getRowColRect(rowCol)
 		sizes = self.getTextureSize()
 		return (pixelRect[0]/sizes[0], pixelRect[1]/sizes[1], 
 			pixelRect[2]/sizes[0], pixelRect[3]/sizes[1]
 		)
 		
-	def getRowColFromUv(self, uv):
+	def getRowColFromUv(self, uv: tuple[float, float]) -> tuple[int, int]:
 		return (int(uv[0] * self.numColumns), int(uv[1]*self.numRows))
 	
-	def getMatIndexFromRowCol(self, rowCol):
+	def getMatIndexFromRowCol(self, rowCol) -> int:
 		return rowCol[0] + rowCol[1] * self.numColumns        
 	pass
 
-def getObjectFromContext(context):
+def getObjectFromContext(context) -> bpy.types.Material:
 	return context.material
 
-def getObjectProps(obj):
+def getObjectProps(obj) -> MultiTexProps:
 	return obj.multiTexProps
 
-def getPropsFromContext(context):
+def getPropsFromContext(context) -> MultiTexProps:
 	obj = getObjectFromContext(context)
 	props = getObjectProps(obj)
 	return props
 
-def objectHasProps(obj):
+def objectHasProps(obj) -> bool:
 	return obj.multiTexProps is not None
 
-def initObjectProps(obj):
+def initObjectProps(obj) -> bool:
 	if not (obj.multiTexProps is None):
 		return False
 	obj.multiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
 	return True
 
-def contextHasData(context):
+def contextHasData(context) -> bool:
 	return getObjectFromContext(context) is not None
 	
-def uvRectApplyMargin(uvRect, margin = 0.25):
+def uvRectApplyMargin(uvRect: tuple[float, float], margin:float = 0.25)->tuple[float, float]:
 	midPoint = (
 		(uvRect[0] + uvRect[2])*0.5, 
 		(uvRect[1] + uvRect[3])*0.5
@@ -243,13 +253,13 @@ def uvRectApplyMargin(uvRect, margin = 0.25):
 		(uvRect[3] - midPoint[1])*scale + midPoint[1],        
 	)
 	
-def applyUvRect(uv, uvRect):
+def applyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
 	return(
 		uvRect[0] + (uvRect[2] - uvRect[0])*uv[0],
 		uvRect[1] + (uvRect[3] - uvRect[1])*uv[1],
 	)
 
-def unApplyUvRect(uv, uvRect):
+def unApplyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
 	return(
 		(uv[0] - uvRect[0])/(uvRect[2] - uvRect[0]),
 		(uv[1] - uvRect[1])/(uvRect[3] - uvRect[1])
@@ -368,7 +378,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 			if not face.select:
 				continue
 			for loop in face.loops:
-				curUv = loop[uvLay].uv;
+				curUv = loop[uvLay].uv
 				print(curUv)
 				if not foundFaces:
 					minUv = (curUv[0], curUv[1])
@@ -407,7 +417,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 				if not face.select:
 					continue
 				for loop in face.loops:
-					curUv = loop[uvLay].uv;
+					curUv = loop[uvLay].uv
 					newUv = applyUvRect(
 						unApplyUvRect(
 							curUv,
@@ -427,7 +437,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 				if not face.select:
 					continue
 				for loop in face.loops:
-					curUv = loop[uvLay].uv;
+					curUv = loop[uvLay].uv
 					newUv = applyUvRect(curUv, uvRect)
 					print(curUv, newUv)
 					loop[uvLay].uv = newUv
@@ -461,7 +471,7 @@ class MultiTexSelectByMat(bpy.types.Operator):
 			minUv = (0.0, 0.0)
 			maxUv = (0.0, 0.0)
 			for loop in face.loops:
-				curUv = loop[uvLay].uv;
+				curUv = loop[uvLay].uv
 				if firstUv:
 					firstUv = False
 					minUv = maxUv = (curUv[0], curUv[1])
@@ -548,7 +558,7 @@ def adjustOrCreateTexture(tex, sizeX, sizeY, numChannels, alpha, newTexName):
 	return tex
 	
 
-def buildMultiTexMaterial(mat, props):
+def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	if not mat.use_nodes:
 		print("Enabling nodes")
 		mat.use_nodes = True
@@ -592,12 +602,25 @@ def buildMultiTexMaterial(mat, props):
 	nodeTree.links.new(albedoTexNode.outputs['Color'], albedoSocket)
 	nodeTree.links.new(albedoTexNode.outputs['Alpha'], alphaSocket)
 	
+	#metallic chain
 	metallicTexNode = getOrCreateTexNode(metallicTexNodeName, 
 		nodeTree, 'Closest', [-600.0, -200.0]
 	)
+	invertRoughnessNode = getOrCreateNode("multitex_roughness_invert", nodeTree,
+		"ShaderNodeMath", [-300, -300]
+	)
+	invertRoughnessNode.operation = 'SUBTRACT'
+	invertRoughnessNode.inputs[0].default_value = 1.0
+	invertRoughnessNode.inputs[1].default_value = 0.0
+
 	nodeTree.links.new(metallicTexNode.outputs['Color'], metallicSocket)
-	nodeTree.links.new(metallicTexNode.outputs['Alpha'], roughnessSocket)
+	nodeTree.links.new(metallicTexNode.outputs['Alpha'], invertRoughnessNode.inputs[1])
+	if props.useSmoothness:
+		nodeTree.links.new(invertRoughnessNode.outputs[0], roughnessSocket)
+	else:
+		nodeTree.links.new(metallicTexNode.outputs['Alpha'], roughnessSocket)
 	
+	#emission chain
 	emissiveMaxPower = getOrCreateNode("multitex_emissive_maxpower", nodeTree,
 		'ShaderNodeValue', [-500.0, -800.0]
 	)
@@ -656,9 +679,13 @@ def buildMultiTexMaterial(mat, props):
 				rectX, rectY, cellSize, cellSize, 
 				curMat.albedo[0], curMat.albedo[1], curMat.albedo[2], curMat.alpha
 			)
+			metRough = 1.0 - curMat.roughness if props.useSmoothness else curMat.roughness
+			metRg = curMat.metallic
+			metB = metRough if props.useRgbRoughness else metRg
+			metA = metRough
 			fillRgbaRect(metallicImage, 
 				rectX, rectY, cellSize, cellSize, 
-				curMat.metallic, curMat.metallic, curMat.roughness, curMat.roughness
+				metRg, metRg, metB, metA
 			)
 			emStrength = max(0.0, min(1.0, curMat.emission_strength / props.maxEmissionStrength))
 			fillRgbaRect(emissiveImage, 
@@ -669,8 +696,10 @@ def buildMultiTexMaterial(mat, props):
 			fillRgbaRect(albedoImage, rectX, rectY, cellSize, cellSize,
 				0.0, 0.0, 0.0, 1.0
 			)
+			
+			metB = 1.0 if props.useRgbRoughness else 0.0
 			fillRgbaRect(metallicImage, rectX, rectY, cellSize, cellSize,
-				0.0, 0.0, 1.0, 1.0
+				0.0, 0.0, metB, 1.0
 			)
 			fillRgbaRect(emissiveImage, rectX, rectY, cellSize, cellSize,
 				0.0, 0.0, 0.0, 1.0
@@ -722,6 +751,10 @@ class MultiTexPanel(bpy.types.Panel):
 		row.prop(props, "numColumns")
 		row.prop(props, "numRows")
 		row.prop(props, "cellSize")
+
+		row = layout.row()
+		row.prop(props, "useRgbRoughness")
+		row.prop(props, "useSmoothness")
 		
 		layout.prop(props, "maxEmissionStrength")
 		
@@ -754,13 +787,13 @@ classes = (
 
 def register():
 	for cls in classes:
-		bpy.utils.register_class(cls);
+		bpy.utils.register_class(cls)
 	bpy.types.Material.multiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
 	pass
 
 def unregister():
 	for cls in classes:
-		bpy.utils.unregister_class(cls);
+		bpy.utils.unregister_class(cls)
 	del bpy.types.Material.multiTexProps
 	pass
 
