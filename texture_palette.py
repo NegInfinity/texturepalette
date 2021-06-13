@@ -82,6 +82,7 @@ And that should be all. Have fun.
 import bpy
 import bmesh
 import os.path
+import json
 
 bl_info = {
 	"name": "Texture Palette",
@@ -304,6 +305,7 @@ def unApplyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, flo
 class MultiTexAddMat(bpy.types.Operator):
 	bl_label = "Add New Sub Material"
 	bl_idname = "multitex.add_new_submat"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
 	def poll(self, context):
@@ -332,6 +334,7 @@ class MultiTexInitProps(bpy.types.Operator):
 class MultiTexRemoveMat(bpy.types.Operator):
 	bl_label = "Remove"
 	bl_idname = "multitex.remove_submat"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
 		min = 0
@@ -349,6 +352,7 @@ class MultiTexRemoveMat(bpy.types.Operator):
 class MultiTexMoveMatUp(bpy.types.Operator):
 	bl_label = "Move Up"
 	bl_idname = "multitex.move_mat_up"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
 		min = 0
@@ -367,6 +371,7 @@ class MultiTexMoveMatUp(bpy.types.Operator):
 class MultiTexMoveMatDown(bpy.types.Operator):
 	bl_label = "Move Down"
 	bl_idname = "multitex.move_mat_down"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
 		min = 0
@@ -388,6 +393,7 @@ def getUvRectSize(uvRect):
 class MultiTexAssignMat(bpy.types.Operator):
 	bl_label = "Assign"
 	bl_idname = "multitex.assign_mat"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
 		min = 0
@@ -482,6 +488,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 class MultiTexSelectByMat(bpy.types.Operator):
 	bl_label = "Select"
 	bl_idname = "multitex.select_by_mat"
+	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
 		min = 0
@@ -579,7 +586,80 @@ class MultiTexSaveTextures(bpy.types.Operator):
 		self.saveTexNodeToFile(metallicTexNodeName, obj, props, False)
 		print("plug")
 		return {'FINISHED'} 
+
+class MultiTexCopyMat(bpy.types.Operator):
+	bl_label = "Copy Material Settings"
+	bl_idname = "multitex.copy_mat_settings"
+	bl_description = "Copy material settings into json string. Can be pasted later as a submaterial"
 	
+	@classmethod
+	def poll(self, context):
+		return contextHasData(context)
+	
+	def execute(self, context):
+		obj = getObjectFromContext(context)
+		props = getPropsFromContext(context)
+
+		bsdfNode: bpy.types.ShaderNodeBsdfPrincipled = findMatTreeNode(obj, 'BSDF_PRINCIPLED')
+		if not bsdfNode:
+			self.report({'WARNING'}, 'BSDF node not found')
+			return {'FINISHED'} 
+
+		s = bsdfToJson(obj, bsdfNode)
+		print(s)
+		bpy.context.window_manager.clipboard = s
+		return {'FINISHED'}
+
+class MultiTexCopySubMat(bpy.types.Operator):
+	bl_label = "Copy"
+	bl_idname = "multitex.copy_sub_mat"
+	bl_description = "Copy sub material settings into json string. Can be pasted later into another submaterial"
+	
+	index: bpy.props.IntProperty(
+		min = 0
+	)    
+	
+	@classmethod
+	def poll(self, context):
+		return contextHasData(context)
+	
+	def execute(self, context):
+		obj = getObjectFromContext(context)
+		props = getPropsFromContext(context)
+		if (self.index >= 0) and (self.index < len(props.submats)):
+			submat = props.submats[self.index]
+			s = subMatToJson(submat)
+			print(s)
+			bpy.context.window_manager.clipboard = s
+		return {'FINISHED'} 
+
+class MultiTexPasteSubMat(bpy.types.Operator):
+	bl_label = "Paste"
+	bl_idname = "multitex.paste_sub_mat"
+	bl_description = "Paste sub material settings"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	index: bpy.props.IntProperty(
+		min = 0
+	)    
+	
+	@classmethod
+	def poll(self, context):
+		return contextHasData(context) and bpy.context.window_manager.clipboard
+	
+	def execute(self, context):
+		obj = getObjectFromContext(context)
+		props = getPropsFromContext(context)
+		if (self.index >= 0) and (self.index < len(props.submats)):
+			submat = props.submats[self.index]
+			try:
+				js = bpy.context.window_manager.clipboard
+				jsonToSubMat(submat, js)
+				pass
+			except ValueError:
+				self.report({'WARNING'}, 'Could not decode json')
+		return {'FINISHED'} 
+
 def findMatTreeNode(mat, type):
 	for node in mat.node_tree.nodes:
 		if node.type == type:
@@ -769,9 +849,71 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 			fillRgbaRect(emissiveImage, rectX, rectY, cellSize, cellSize,
 				0.0, 0.0, 0.0, 1.0
 			)
-		
-		
 	pass    
+
+MATKEY_NAME = "name"
+MATKEY_ALBEDO_R = "albedoR"
+MATKEY_ALBEDO_G = "albedoG"
+MATKEY_ALBEDO_B = "albedoB"
+MATKEY_ALPHA = "alpha"
+MATKEY_EMISSIVE_R = "emissiveR"
+MATKEY_EMISSIVE_G = "emissiveG"
+MATKEY_EMISSIVE_B = "emissiveB"
+MATKEY_EMISSIVE_STRENGTH = "emissiveStrength"
+MATKEY_METALLIC = "metallic"
+MATKEY_ROUGHNESS = "roughness"
+
+def bsdfToJson(mat: bpy.types.Material, bsdfNode: bpy.types.Material):
+	albedoSocket: bpy.types.NodeSocket = bsdfNode.inputs['Base Color']
+	metallicSocket: bpy.types.NodeSocket = bsdfNode.inputs['Metallic']
+	roughnessSocket: bpy.types.NodeSocket = bsdfNode.inputs['Roughness']
+	alphaSocket: bpy.types.NodeSocket = bsdfNode.inputs['Alpha']
+	emissiveSocket: bpy.types.NodeSocket = bsdfNode.inputs['Emission']	
+
+	data = {
+		MATKEY_NAME: mat.name,
+		MATKEY_ALBEDO_R: albedoSocket.default_value[0],
+		MATKEY_ALBEDO_G: albedoSocket.default_value[1],
+		MATKEY_ALBEDO_B: albedoSocket.default_value[2],
+		MATKEY_ALPHA: alphaSocket.default_value,
+		MATKEY_EMISSIVE_R: emissiveSocket.default_value[0],
+		MATKEY_EMISSIVE_G: emissiveSocket.default_value[1],
+		MATKEY_EMISSIVE_B: emissiveSocket.default_value[2],
+		MATKEY_EMISSIVE_STRENGTH: bsdfNode.inputs['Emission Strength'].default_value,
+		MATKEY_METALLIC: metallicSocket.default_value,
+		MATKEY_ROUGHNESS: roughnessSocket.default_value
+	}
+	return json.dumps(data, indent=4)
+
+def subMatToJson(sm: MultiTexSubMatProps):
+	data = {
+		MATKEY_NAME: sm.name,
+		MATKEY_ALBEDO_R: sm.albedo[0],
+		MATKEY_ALBEDO_G: sm.albedo[1],
+		MATKEY_ALBEDO_B: sm.albedo[2],
+		MATKEY_ALPHA: sm.alpha,
+		MATKEY_EMISSIVE_R: sm.emissive[0],
+		MATKEY_EMISSIVE_G: sm.emissive[1],
+		MATKEY_EMISSIVE_B: sm.emissive[2],
+		MATKEY_EMISSIVE_STRENGTH: sm.emission_strength,
+		MATKEY_METALLIC: sm.metallic,
+		MATKEY_ROUGHNESS: sm.roughness
+	}
+	return json.dumps(data, indent=4)
+
+def jsonToSubMat(sm: MultiTexSubMatProps, js: str):
+	data:dict = json.loads(js)
+	sm.name = data.get(MATKEY_NAME, sm.name)
+	sm.albedo[0] = data.get(MATKEY_ALBEDO_R, sm.albedo[0])
+	sm.albedo[1] = data.get(MATKEY_ALBEDO_G, sm.albedo[1])
+	sm.albedo[2] = data.get(MATKEY_ALBEDO_B, sm.albedo[2])
+	sm.alpha = data.get(MATKEY_ALPHA, sm.alpha)
+	sm.emissive[0] = data.get(MATKEY_EMISSIVE_R, sm.emissive[0])
+	sm.emissive[1] = data.get(MATKEY_EMISSIVE_G, sm.emissive[1])
+	sm.emissive[2] = data.get(MATKEY_EMISSIVE_B, sm.emissive[2])
+	sm.emission_strength = data.get(MATKEY_EMISSIVE_STRENGTH, sm.emission_strength)
+	sm.metallic = data.get(MATKEY_METALLIC, sm.metallic)
+	sm.roughness = data.get(MATKEY_ROUGHNESS, sm.roughness)
 
 class MultiTexPanel(bpy.types.Panel):
 	bl_idname = "OBJECT_PT_multitex_panel"
@@ -786,15 +928,20 @@ class MultiTexPanel(bpy.types.Panel):
 	
 	def drawSubmat(self, layout, submat, index, title):
 		subLayout = layout.box()
-		if title:
-			subLayout.label(text=title)
-		subLayout.prop(submat, "subMatName")
+		#if title:
+		#	subLayout.label(text=title)
+		row = subLayout.row()
+		row.prop(submat, "subMatName")
+		row.operator(MultiTexCopySubMat.bl_idname).index = index
+		row.operator(MultiTexPasteSubMat.bl_idname).index = index
+
 		row = subLayout.row()
 		row.prop(submat, "albedo")
 		row.prop(submat, "alpha")
 		row = subLayout.row()
 		row.prop(submat, "metallic")
 		row.prop(submat, "roughness")
+		
 		row = subLayout.row()
 		row.prop(submat, "emissive")
 		row.prop(submat, "emission_strength")
@@ -811,6 +958,8 @@ class MultiTexPanel(bpy.types.Panel):
 		layout = self.layout
 		obj = getObjectFromContext(context)
 		props = getObjectProps(obj)
+
+		layout.operator(MultiTexCopyMat.bl_idname)
 		
 		row = layout.row()
 		row.prop(props, "numColumns")
@@ -859,6 +1008,9 @@ classes = (
 	MultiTexAssignMat,
 	MultiTexBuild,
 	MultiTexSaveTextures,
+	MultiTexCopyMat,
+	MultiTexCopySubMat,
+	MultiTexPasteSubMat,
 	MultiTexPanel
 )
 
