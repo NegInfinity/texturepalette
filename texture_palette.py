@@ -81,6 +81,7 @@ And that should be all. Have fun.
 
 import bpy
 import bmesh
+import os.path
 
 bl_info = {
 	"name": "Texture Palette",
@@ -186,6 +187,17 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		name = "Texture Prefix",
 		description = "Prefix used when generating texture names",
 		default = "multiTex"
+	)	
+	saveTexDir: bpy.props.StringProperty(
+		name = "Save to Dir",
+		description = "Save textures to directory",
+		default = "//",
+		subtype = 'DIR_PATH'
+	)
+	useMaterialName: bpy.props.BoolProperty(
+		name = "Use Mat Name",
+		description = "Use material name for prefix",
+		default = False
 	)
 	useShortTexNames: bpy.props.BoolProperty(
 		name = "Use Short Names",
@@ -199,10 +211,11 @@ class MultiTexProps(bpy.types.PropertyGroup):
 	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
-	def genTexName(self, longName: str, shortName: str):
+	def genTexName(self, longName: str, shortName: str, matName: str = ""):
+		prefix = matName if (matName and self.useMaterialName) else self.texNamePrefix 
 		if self.useShortTexNames:
-			return self.texNamePrefix + shortName
-		return self.texNamePrefix + longName
+			return prefix + shortName
+		return prefix + longName
 
 	def getTextureSize(self) -> tuple[int, int]:
 		return (self.numColumns * self.cellSize, self.numRows * self.cellSize)
@@ -531,6 +544,42 @@ class MultiTexBuild(bpy.types.Operator):
 		buildMultiTexMaterial(obj, props)
 		return {'FINISHED'} 
 	
+class MultiTexSaveTextures(bpy.types.Operator):
+	bl_label = "Save textures"
+	bl_idname = "multitex.save_textures"
+	bl_description = "Saves texture files to specific folder. Files with same name will be overwritten!"
+	
+	@classmethod
+	def poll(self, context):
+		return contextHasData(context)
+	
+	def saveTexNodeToFile(self, nodeName: str, obj: bpy.types.Material, props:MultiTexProps, colorTexture: bool):
+		texNode = obj.node_tree.nodes.get(nodeName)
+		if not texNode or not texNode.image:
+			self.report({'WARNING'}, 'Could not find texture node {0}'.format(nodeName))
+			return
+		
+		image: bpy.types.Image = texNode.image
+		name, ext = os.path.splitext(image.name)
+		newExt = ".png" if colorTexture else ".exr"
+		fullPath = os.path.join(props.saveTexDir, name + newExt)
+
+		image.filepath_raw = fullPath
+		image.file_format = 'PNG' if colorTexture else 'OPEN_EXR'
+		image.save()
+		pass
+
+	def execute(self, context):
+		obj = getObjectFromContext(context)
+		props = getPropsFromContext(context)
+		emissiveTexNode = obj.node_tree.nodes.get(emissiveTexNodeName)
+		metallicTexNode = obj.node_tree.nodes.get(metallicTexNodeName)
+		self.saveTexNodeToFile(albedoTexNodeName, obj, props, True)
+		self.saveTexNodeToFile(emissiveTexNodeName, obj, props, True)
+		self.saveTexNodeToFile(metallicTexNodeName, obj, props, False)
+		print("plug")
+		return {'FINISHED'} 
+	
 def findMatTreeNode(mat, type):
 	for node in mat.node_tree.nodes:
 		if node.type == type:
@@ -580,6 +629,10 @@ def adjustOrCreateTexture(tex, sizeX: int, sizeY: int, numChannels: int, alpha: 
 	return tex
 	
 
+albedoTexNodeName = 'multitex_albedo'
+metallicTexNodeName = 'multitex_metallic'
+emissiveTexNodeName = 'multitex_emissive'
+
 def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	if not mat.use_nodes:
 		print("Enabling nodes")
@@ -607,10 +660,6 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	metallicSocket = bsdfNode.inputs['Metallic']
 	roughnessSocket = bsdfNode.inputs['Roughness']
 	alphaSocket = bsdfNode.inputs['Alpha']
-	
-	albedoTexNodeName = 'multitex_albedo'
-	metallicTexNodeName = 'multitex_metallic'
-	emissiveTexNodeName = 'multitex_emissive'    
 	
 	albedoTexNode = getOrCreateTexNode(albedoTexNodeName, 
 		nodeTree, 'Closest', [-600.0, 100.0]
@@ -662,19 +711,19 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	albedoTexNode.image = adjustOrCreateTexture(
 		albedoTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Albedop", "al"),
+		props.genTexName("Albedop", "_al", mat.name),
 		props.useLinearSpace
 	)
 	metallicTexNode.image = adjustOrCreateTexture(
 		metallicTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Metallic", "met"),
+		props.genTexName("Metallic", "_met", mat.name),
 		True
 	)
 	emissiveTexNode.image = adjustOrCreateTexture(
 		emissiveTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Emissive", "em"),
+		props.genTexName("Emissive", "_em", mat.name),
 		props.useLinearSpace
 	)
 	albedoImage = albedoTexNode.image
@@ -778,15 +827,20 @@ class MultiTexPanel(bpy.types.Panel):
 		row = layout.row()
 
 		row.prop(props, "useShortTexNames")
+		row.prop(props, "useMaterialName")
 		row.prop(props, "useLinearSpace")
 		
-		layout.operator(MultiTexBuild.bl_idname)
+		row = layout.row()
+		row.prop(props, "saveTexDir")
+
+		row = layout.row()
+		row.operator(MultiTexBuild.bl_idname)
+		row.operator(MultiTexSaveTextures.bl_idname)
 		
 		row = layout.row()
 		row.label(text = "Mat slots: {0}".format(props.numRows * props.numColumns))
 		row.label(text = "Current mats: {0}".format(len(props.submats)))
 
-		#self.drawSubmat(layout, props.submat, "Submat")
 		for i in range(0, len(props.submats)):
 			self.drawSubmat(layout, props.submats[i], i, "Mat {0}".format(i))
 			
@@ -804,6 +858,7 @@ classes = (
 	MultiTexSelectByMat,
 	MultiTexAssignMat,
 	MultiTexBuild,
+	MultiTexSaveTextures,
 	MultiTexPanel
 )
 
