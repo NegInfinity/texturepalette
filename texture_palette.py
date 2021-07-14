@@ -210,6 +210,11 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		description = "Use linear colorspace for new textures.",
 		default = True
 	)
+	useTga: bpy.props.BoolProperty(
+		name = "Use tga",
+		description = "Save color textures to tga instead of png",
+		default = False
+	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
 	def genTexName(self, longName: str, shortName: str, matName: str = ""):
@@ -397,7 +402,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
@@ -568,11 +573,15 @@ class MultiTexSaveTextures(bpy.types.Operator):
 		
 		image: bpy.types.Image = texNode.image
 		name, ext = os.path.splitext(image.name)
-		newExt = ".png" if colorTexture else ".exr"
+
+		colorExt = ".tga" if props.useTga else ".png"
+		colorFormat = 'TARGA' if props.useTga else 'PNG'
+
+		newExt = colorExt if colorTexture else ".exr"
 		fullPath = os.path.join(props.saveTexDir, name + newExt)
 
 		image.filepath_raw = fullPath
-		image.file_format = 'PNG' if colorTexture else 'OPEN_EXR'
+		image.file_format = colorFormat if colorTexture else 'OPEN_EXR'
 		image.save()
 		pass
 
@@ -797,7 +806,7 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	metallicTexNode.image = adjustOrCreateTexture(
 		metallicTexNode.image, 
 		sizeX, sizeY, 4, True, 
-		props.genTexName("Metallic", "_met", mat.name),
+		props.genTexName("Metallic", "_mt", mat.name),
 		True
 	)
 	emissiveTexNode.image = adjustOrCreateTexture(
@@ -974,9 +983,11 @@ class MultiTexPanel(bpy.types.Panel):
 		layout.prop(props, "texNamePrefix")
 
 		row = layout.row()
-
 		row.prop(props, "useShortTexNames")
 		row.prop(props, "useMaterialName")
+
+		row = layout.row()
+		row.prop(props, "useTga")
 		row.prop(props, "useLinearSpace")
 		
 		row = layout.row()
