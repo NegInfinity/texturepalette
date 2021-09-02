@@ -215,6 +215,11 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		description = "Save color textures to tga instead of png",
 		default = False
 	)
+	compactUi: bpy.props.BoolProperty(
+		name = "Compact ui",
+		description = "Use compact ui layout",
+		default = False
+	)
 	submats: bpy.props.CollectionProperty(type=MultiTexSubMatProps)
 	
 	def genTexName(self, longName: str, shortName: str, matName: str = ""):
@@ -339,6 +344,7 @@ class MultiTexInitProps(bpy.types.Operator):
 class MultiTexRemoveMat(bpy.types.Operator):
 	bl_label = "Remove"
 	bl_idname = "multitex.remove_submat"
+	bl_description = "Remove"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
@@ -357,6 +363,7 @@ class MultiTexRemoveMat(bpy.types.Operator):
 class MultiTexMoveMatUp(bpy.types.Operator):
 	bl_label = "Move Up"
 	bl_idname = "multitex.move_mat_up"
+	bl_description = "Move Up"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
@@ -376,6 +383,7 @@ class MultiTexMoveMatUp(bpy.types.Operator):
 class MultiTexMoveMatDown(bpy.types.Operator):
 	bl_label = "Move Down"
 	bl_idname = "multitex.move_mat_down"
+	bl_description = "Move Down"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
@@ -398,6 +406,7 @@ def getUvRectSize(uvRect):
 class MultiTexAssignMat(bpy.types.Operator):
 	bl_label = "Assign"
 	bl_idname = "multitex.assign_mat"
+	bl_description = "Assign material to selected faces"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
@@ -493,6 +502,7 @@ class MultiTexAssignMat(bpy.types.Operator):
 class MultiTexSelectByMat(bpy.types.Operator):
 	bl_label = "Select"
 	bl_idname = "multitex.select_by_mat"
+	bl_description = "Select faces used by this material"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	index: bpy.props.IntProperty(
@@ -935,7 +945,7 @@ class MultiTexPanel(bpy.types.Panel):
 	def poll(self, context):
 		return contextHasData(context)
 	
-	def drawSubmat(self, layout, submat, index, title):
+	def drawSubmat(self, layout, submat, index):
 		subLayout = layout.box()
 		#if title:
 		#	subLayout.label(text=title)
@@ -962,6 +972,33 @@ class MultiTexPanel(bpy.types.Panel):
 			row.operator(MultiTexMoveMatUp.bl_idname).index = index
 			row.operator(MultiTexMoveMatDown.bl_idname).index = index
 		
+	def drawSubmatCompact(self, layout, submat, index):
+		subLayout = layout.box()
+
+		row = subLayout.row()
+		split = row.split()
+		col1 = split.column()
+		col2 = split.column()
+		col1.prop(submat, "subMatName", text="")
+		row = col2.row()		
+		row.operator(MultiTexCopySubMat.bl_idname, text="C").index = index
+		row.operator(MultiTexPasteSubMat.bl_idname, text="P").index = index
+		if index >= 0:
+			#row = subLayout.row()
+			row.operator(MultiTexAssignMat.bl_idname, text="A").index = index
+			row.operator(MultiTexSelectByMat.bl_idname, text="S").index = index
+			row.operator(MultiTexRemoveMat.bl_idname, icon='X', text="").index = index
+			row.operator(MultiTexMoveMatUp.bl_idname, icon='TRIA_UP', text="").index = index
+			row.operator(MultiTexMoveMatDown.bl_idname, icon='TRIA_DOWN', text="").index = index
+
+		row = subLayout.row()
+		row.prop(submat, "albedo", text="")
+		row.prop(submat, "alpha", text="A")
+
+		row.prop(submat, "emissive", text="")
+		row.prop(submat, "emission_strength", text="EmStr")
+		row.prop(submat, "metallic", text="M")
+		row.prop(submat, "roughness", text="R")
 	
 	def draw(self, context):
 		layout = self.layout
@@ -989,6 +1026,9 @@ class MultiTexPanel(bpy.types.Panel):
 		row = layout.row()
 		row.prop(props, "useTga")
 		row.prop(props, "useLinearSpace")
+
+		row = layout.row()
+		row.prop(props, "compactUi")
 		
 		row = layout.row()
 		row.prop(props, "saveTexDir")
@@ -1002,7 +1042,10 @@ class MultiTexPanel(bpy.types.Panel):
 		row.label(text = "Current mats: {0}".format(len(props.submats)))
 
 		for i in range(0, len(props.submats)):
-			self.drawSubmat(layout, props.submats[i], i, "Mat {0}".format(i))
+			if props.compactUi:
+				self.drawSubmatCompact(layout, props.submats[i], i)
+			else:
+				self.drawSubmat(layout, props.submats[i], i)
 			
 		layout.operator(MultiTexAddMat.bl_idname)
 		
