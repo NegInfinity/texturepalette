@@ -72,4 +72,11 @@ Metallic texture stores Metallic in RG channels, and Roughness in BA channel.
 Emissive texture stores emission color in RGB and emission power in alpha. 
 Value stored in alpha channel is based on emission strength and max emission.
 
+## Combining existing meshes.
+
+I've added one more revision. Now it is possible to combine multiple materials used by different meshes into one multi material.
+To do that, select the meshes you want to process, and then choose "Combine Mesh Materials" from "object" menu (can also be reached via search).
+If nothing is selected, all objects in the scene will be processed. This will make copies of existing meshes, replace materials (on those copies) with
+a single "combined material", build that material and then select the new objects. The process will skip meshes that already have multitexture enabled.
+
 And that should be all. Have fun.

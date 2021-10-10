@@ -87,7 +87,7 @@ import json
 bl_info = {
 	"name": "Texture Palette",
 	"blender": (2, 93, 0),
-	"version": (0, 0),
+	"version": (0, 0, 1),
 	"description": "Multi-material texture palette for low poly models",
 	"author": "Victor \"NegInfinity\" Eremin",
 	"category": "Material"
@@ -96,7 +96,7 @@ bl_info = {
 class MultiTexSubMatProps(bpy.types.PropertyGroup):
 	subMatName: bpy.props.StringProperty(
 		name = "Name",
-		description = "Submaterial name"        
+		description = "Submaterial name"
 	)
 	albedo: bpy.props.FloatVectorProperty(
 		name = "Albedo",
@@ -142,8 +142,6 @@ class MultiTexSubMatProps(bpy.types.PropertyGroup):
 		min = 0.0,
 		max = 256.0
 	)
-	
-	pass
 
 class MultiTexProps(bpy.types.PropertyGroup):
 	numColumns: bpy.props.IntProperty(
@@ -262,55 +260,94 @@ class MultiTexProps(bpy.types.PropertyGroup):
 		
 	def getRowColFromUv(self, uv: tuple[float, float]) -> tuple[int, int]:
 		return (int(uv[0] * self.numColumns), int(uv[1]*self.numRows))
-	
 
-def getObjectFromContext(context) -> bpy.types.Material:
-	return context.material
+class Utils:
+	@staticmethod
+	def getObjectFromContext(context) -> bpy.types.Material:
+		return context.material
 
-def getObjectProps(obj) -> MultiTexProps:
-	return obj.multiTexProps
+	@staticmethod
+	def getObjectProps(obj) -> MultiTexProps:
+		return obj.multiTexProps
 
-def getPropsFromContext(context) -> MultiTexProps:
-	obj = getObjectFromContext(context)
-	props = getObjectProps(obj)
-	return props
+	@staticmethod
+	def getPropsFromContext(context) -> MultiTexProps:
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getObjectProps(obj)
+		return props
 
-def objectHasProps(obj) -> bool:
-	return obj.multiTexProps is not None
+	@staticmethod
+	def objectHasProps(obj) -> bool:
+		return obj.multiTexProps is not None
 
-def initObjectProps(obj) -> bool:
-	if not (obj.multiTexProps is None):
-		return False
-	obj.multiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
-	return True
+	@staticmethod
+	def initObjectProps(obj) -> bool:
+		if not (obj.multiTexProps is None):
+			return False
+		obj.multiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
+		return True
 
-def contextHasData(context) -> bool:
-	return getObjectFromContext(context) is not None
-	
-def uvRectApplyMargin(uvRect: tuple[float, float], margin:float = 0.25)->tuple[float, float]:
-	midPoint = (
-		(uvRect[0] + uvRect[2])*0.5, 
-		(uvRect[1] + uvRect[3])*0.5
-	)
-	scale = 1.0 - margin
-	return(
-		(uvRect[0] - midPoint[0])*scale + midPoint[0],
-		(uvRect[1] - midPoint[1])*scale + midPoint[1],
-		(uvRect[2] - midPoint[0])*scale + midPoint[0],
-		(uvRect[3] - midPoint[1])*scale + midPoint[1],        
-	)
-	
-def applyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
-	return(
-		uvRect[0] + (uvRect[2] - uvRect[0])*uv[0],
-		uvRect[1] + (uvRect[3] - uvRect[1])*uv[1],
-	)
+	@staticmethod
+	def contextHasData(context) -> bool:
+		return Utils.getObjectFromContext(context) is not None
 
-def unApplyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
-	return(
-		(uv[0] - uvRect[0])/(uvRect[2] - uvRect[0]),
-		(uv[1] - uvRect[1])/(uvRect[3] - uvRect[1])
-	)
+	@staticmethod
+	def uvRectApplyMargin(uvRect: tuple[float, float, float, float], margin:float = 0.25)->tuple[float, float, float, float]:
+		midPoint = (
+			(uvRect[0] + uvRect[2])*0.5, 
+			(uvRect[1] + uvRect[3])*0.5
+		)
+		scale = 1.0 - margin
+		return(
+			(uvRect[0] - midPoint[0])*scale + midPoint[0],
+			(uvRect[1] - midPoint[1])*scale + midPoint[1],
+			(uvRect[2] - midPoint[0])*scale + midPoint[0],
+			(uvRect[3] - midPoint[1])*scale + midPoint[1],
+		)
+		
+	@staticmethod
+	def applyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
+		return(
+			uvRect[0] + (uvRect[2] - uvRect[0])*uv[0],
+			uvRect[1] + (uvRect[3] - uvRect[1])*uv[1],
+		)
+
+	@staticmethod
+	def unApplyUvRect(uv:tuple[float, float], uvRect: tuple[float, float, float, float]) -> tuple[float, float]:
+		return(
+			(uv[0] - uvRect[0])/(uvRect[2] - uvRect[0]),
+			(uv[1] - uvRect[1])/(uvRect[3] - uvRect[1])
+		)
+
+class MatKeys:
+	NAME = "name"
+	ALBEDO_R = "albedoR"
+	ALBEDO_G = "albedoG"
+	ALBEDO_B = "albedoB"
+	ALPHA = "alpha"
+	EMISSIVE_R = "emissiveR"
+	EMISSIVE_G = "emissiveG"
+	EMISSIVE_B = "emissiveB"
+	EMISSIVE_STRENGTH = "emissiveStrength"
+	METALLIC = "metallic"
+	ROUGHNESS = "roughness"
+
+class BsdfInputNames:
+	albedo = 'Base Color'
+	metallic = 'Metallic'
+	roughness = 'Roughness'
+	alpha = 'Alpha'
+	emission = 'Emission'
+	emissionStrength = 'Emission Strength'
+
+class TexNodeNames:
+	albedo = 'multitex_albedo'
+	metallic = 'multitex_metallic'
+	emissive = 'multitex_emissive'
+
+class MatNodeNames:
+	outputMat = 'OUTPUT_MATERIAL'
+	bsdf = 'BSDF_PRINCIPLED'
 
 class MultiTexAddMat(bpy.types.Operator):
 	bl_label = "Add New Sub Material"
@@ -319,11 +356,11 @@ class MultiTexAddMat(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def execute(self, context):
-		props = getPropsFromContext(context)
-		newMat = props.submats.add()
+		props = Utils.getPropsFromContext(context)
+		newMat: MultiTexSubMatProps = props.submats.add()
 		newMat.subMatName = "Mat {0}".format(len(props.submats)-1)
 		return {'FINISHED'}
 	
@@ -333,12 +370,12 @@ class MultiTexInitProps(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		obj = getObjectFromContext(context)
-		return (obj is not None) and not objectHasProps(obj)
+		obj = Utils.getObjectFromContext(context)
+		return (obj is not None) and not Utils.objectHasProps(obj)
 	
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		initObjectProps(obj)        
+		obj = Utils.getObjectFromContext(context)
+		Utils.initObjectProps(obj)
 		return {'FINISHED'}
 
 class MultiTexRemoveMat(bpy.types.Operator):
@@ -353,10 +390,10 @@ class MultiTexRemoveMat(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) and (context.mode != 'EDIT_MESH')
+		return Utils.contextHasData(context) and (context.mode != 'EDIT_MESH')
 	
 	def execute(self, context):
-		props = getPropsFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		props.submats.remove(self.index)
 		return {'FINISHED'} 
 	
@@ -368,14 +405,14 @@ class MultiTexMoveMatUp(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) and (context.mode != 'EDIT_MESH')
+		return Utils.contextHasData(context) and (context.mode != 'EDIT_MESH')
 	
 	def execute(self, context):
-		props = getPropsFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		if (self.index > 0):
 			props.submats.move(self.index, self.index-1)
 		return {'FINISHED'} 
@@ -388,20 +425,17 @@ class MultiTexMoveMatDown(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) and (context.mode != 'EDIT_MESH')
+		return Utils.contextHasData(context) and (context.mode != 'EDIT_MESH')
 	
 	def execute(self, context):
-		props = getPropsFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		if (self.index < (len(props.submats) - 1)):
 			props.submats.move(self.index, self.index+1)
 		return {'FINISHED'} 
-
-def getUvRectSize(uvRect):
-	return (uvRect[2] - uvRect[0], uvRect[3] - uvRect[1])
 
 class MultiTexAssignMat(bpy.types.Operator):
 	bl_label = "Assign"
@@ -415,11 +449,11 @@ class MultiTexAssignMat(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) \
+		return Utils.contextHasData(context) \
 			and (context.mode == 'EDIT_MESH') and context.edit_object
 	
 	def execute(self, context):
-		props = getPropsFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		uvRect = props.getMatRectUv(self.index)
 		obj = context.edit_object
 		rect = props.get
@@ -471,8 +505,8 @@ class MultiTexAssignMat(bpy.types.Operator):
 					continue
 				for loop in face.loops:
 					curUv = loop[uvLay].uv
-					newUv = applyUvRect(
-						unApplyUvRect(
+					newUv = Utils.applyUvRect(
+						Utils.unApplyUvRect(
 							curUv,
 							origUvRect
 						),
@@ -485,16 +519,16 @@ class MultiTexAssignMat(bpy.types.Operator):
 			print("first time uv assignment")
 			newRowCol = props.getMatRowCol(self.index)
 			uvRect = props.getRowColRectUv(newRowCol)
-			uvRect = uvRectApplyMargin(uvRect)
+			uvRect = Utils.uvRectApplyMargin(uvRect)
 			for face in bm.faces:
 				if not face.select:
 					continue
 				for loop in face.loops:
 					curUv = loop[uvLay].uv
-					newUv = applyUvRect(curUv, uvRect)
+					newUv = Utils.applyUvRect(curUv, uvRect)
 					#print(curUv, newUv)
 					loop[uvLay].uv = newUv
-				pass        
+				pass
 		
 		bmesh.update_edit_mesh(obj.data, True)
 		return {'FINISHED'} 
@@ -507,18 +541,18 @@ class MultiTexSelectByMat(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) \
+		return Utils.contextHasData(context) \
 			and (context.mode == 'EDIT_MESH') and context.edit_object
 	
 	def execute(self, context):
 		obj = context.edit_object
 		
 		bm = bmesh.from_edit_mesh(obj.data)
-		props = getPropsFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		uvLay = bm.loops.layers.uv.active
 		for face in bm.faces:
 			face.select = False
@@ -547,7 +581,7 @@ class MultiTexSelectByMat(bpy.types.Operator):
 			
 			matIndex = props.getMatIndexFromRowCol(minRowCol)
 			if matIndex == self.index:
-				face.select = True                    
+				face.select = True
 			
 		bmesh.update_edit_mesh(obj.data, True)
 		return {'FINISHED'} 
@@ -558,11 +592,11 @@ class MultiTexBuild(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		props = getPropsFromContext(context)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		buildMultiTexMaterial(obj, props)
 		return {'FINISHED'} 
 	
@@ -573,7 +607,7 @@ class MultiTexSaveTextures(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def saveTexNodeToFile(self, nodeName: str, obj: bpy.types.Material, props:MultiTexProps, colorTexture: bool):
 		texNode = obj.node_tree.nodes.get(nodeName)
@@ -596,13 +630,13 @@ class MultiTexSaveTextures(bpy.types.Operator):
 		pass
 
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		props = getPropsFromContext(context)
-		emissiveTexNode = obj.node_tree.nodes.get(emissiveTexNodeName)
-		metallicTexNode = obj.node_tree.nodes.get(metallicTexNodeName)
-		self.saveTexNodeToFile(albedoTexNodeName, obj, props, True)
-		self.saveTexNodeToFile(emissiveTexNodeName, obj, props, True)
-		self.saveTexNodeToFile(metallicTexNodeName, obj, props, False)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getPropsFromContext(context)
+		emissiveTexNode = obj.node_tree.nodes.get(TexNodeNames.emissive)
+		metallicTexNode = obj.node_tree.nodes.get(TexNodeNames.metallic)
+		self.saveTexNodeToFile(TexNodeNames.albedo, obj, props, True)
+		self.saveTexNodeToFile(TexNodeNames.emissive, obj, props, True)
+		self.saveTexNodeToFile(TexNodeNames.metallic, obj, props, False)
 		print("plug")
 		return {'FINISHED'} 
 
@@ -613,13 +647,13 @@ class MultiTexCopyMat(bpy.types.Operator):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		props = getPropsFromContext(context)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getPropsFromContext(context)
 
-		bsdfNode: bpy.types.ShaderNodeBsdfPrincipled = findMatTreeNode(obj, 'BSDF_PRINCIPLED')
+		bsdfNode: bpy.types.ShaderNodeBsdfPrincipled = findMatTreeNode(obj, MatNodeNames.bsdf)
 		if not bsdfNode:
 			self.report({'WARNING'}, 'BSDF node not found')
 			return {'FINISHED'} 
@@ -636,15 +670,15 @@ class MultiTexCopySubMat(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		props = getPropsFromContext(context)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		if (self.index >= 0) and (self.index < len(props.submats)):
 			submat = props.submats[self.index]
 			s = subMatToJson(submat)
@@ -660,15 +694,15 @@ class MultiTexPasteSubMat(bpy.types.Operator):
 	
 	index: bpy.props.IntProperty(
 		min = 0
-	)    
+	)
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context) and bpy.context.window_manager.clipboard
+		return Utils.contextHasData(context) and bpy.context.window_manager.clipboard
 	
 	def execute(self, context):
-		obj = getObjectFromContext(context)
-		props = getPropsFromContext(context)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getPropsFromContext(context)
 		if (self.index >= 0) and (self.index < len(props.submats)):
 			submat = props.submats[self.index]
 			try:
@@ -679,13 +713,154 @@ class MultiTexPasteSubMat(bpy.types.Operator):
 				self.report({'WARNING'}, 'Could not decode json')
 		return {'FINISHED'} 
 
-def findMatTreeNode(mat, type):
+class MultiTexCombineMeshes(bpy.types.Operator):
+	"""Takes currently selected meshes and combines their materials into one master material"""
+	bl_idname = "multitex.combine_meshes"
+	bl_label = "Combine Mesh Materials"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	def execute(self, context: bpy.context):
+		print("processing")
+		scene = context.scene
+
+		objs = []
+
+		if not context.selected_objects:
+			for x in context.scene.objects:
+				objs.append(x)
+				print(x)
+		else:
+			for x in context.selected_objects:
+				objs.append(x)
+				print(x)
+
+		def matHasMultiTex(mat: bpy.types.Material)-> bool:
+			multiTex: MultiTexProps = mat.multiTexProps
+			if multiTex and len(multiTex.submats) > 0:
+				return True
+			return False
+
+		meshObjs = [x for x in objs if x and (x.type == 'MESH')]
+		mats = []
+		for x in meshObjs:
+			curObj: bpy.types.Object = x
+			print(curObj, curObj.type, curObj.data)
+			mesh: bpy.types.Mesh = curObj.data
+			print(mesh.materials)
+			for mat in mesh.materials:
+				if mat and not mat in mats and not matHasMultiTex(mat):
+					mats.append(mat)
+
+		if not mats:
+			self.report({'ERROR'}, "No materials to combine")
+			print("No materials to combine")
+			return {'CANCELLED'}
+
+		# print(mats)
+		mats.sort(key=lambda x: x.name)
+		numMats = len(mats)
+
+		def findPow2(num: int):
+			result = 1
+			while result*result < num:
+				result *= 2
+			return result
+
+		pow2 = findPow2(numMats)
+		print(numMats, pow2)
+
+		combinedMat = bpy.data.materials.new(name = "Combined Material")
+		#multiTex:MultiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
+		#combinedMat.multiTexProps = multiTex
+		multiTex:MultiTexProps = combinedMat.multiTexProps
+				
+		multiTex.numRows = pow2
+		multiTex.numColumns = pow2
+		multiTex.cellSize = 1
+
+		print(mats)
+		for curMat in mats:
+			subMat: MultiTexSubMatProps = multiTex.submats.add()
+			bsdf = findMatTreeNode(curMat, MatNodeNames.bsdf)
+			if bsdf:
+				js = bsdfToJson(curMat, bsdf)
+				jsonToSubMat(subMat, js)
+
+		matRects = [multiTex.getMatRectUv(x) for x in range(len(mats))]
+
+		def objHasMultiTex(obj: bpy.types.Object) -> bool:
+			if obj.data and obj.type == 'MESH':
+				mesh: bpy.types.Mesh = obj.data
+				if mesh.materials:
+					for mat in mesh.materials:
+						if matHasMultiTex(mat):
+							return True
+			return False
+
+		newObjs = []
+		for x in meshObjs:
+			curObj: bpy.types.Object = x
+			if objHasMultiTex(curObj):
+				self.report({'INFO'}, "obj {0} already has multitex material, skipping".format(curObj.name))
+				print("obj {0} already has multitex material, skipping".format(curObj.name))
+				continue
+			newObj: bpy.types.Object = curObj.copy()
+			newObjs.append(newObj)
+			newObj.data = curObj.data.copy()
+			context.collection.objects.link(newObj)
+			newMesh: bpy.types.Mesh = newObj.data
+
+			bm = bmesh.new()
+			bm.from_mesh(newMesh)
+			uvLay = bm.loops.layers.uv.active
+
+			meshMats = newMesh.materials
+			meshMatIdx = [mats.index(x) for x in meshMats]
+			
+			for face in bm.faces:
+				matIdx = meshMatIdx[face.material_index]
+				uvRect = matRects[matIdx]
+				print(uvRect)
+				face.material_index = 0
+				for loop in face.loops:
+					curUv = loop[uvLay].uv
+					newUv = Utils.applyUvRect(curUv, uvRect)
+					loop[uvLay].uv = newUv
+
+			bm.to_mesh(newMesh)
+
+			newMesh.materials.clear()
+			newMesh.materials.append(combinedMat)
+
+		print("num mats: {0}".format(len(mats)))
+
+		if not newObjs:
+			self.report({'ERROR'}, "No objects were created")
+			print("No objects were created")
+			return {'CANCELLED'}
+
+		multiTex.useShortTexNames = True
+		multiTex.useTga = True
+		multiTex.compactUi = True
+		buildMultiTexMaterial(combinedMat, multiTex)
+
+		for x in bpy.context.selected_objects:
+			x.select_set(False)
+
+		for x in newObjs:
+			x.select_set(True)
+
+		return {'FINISHED'}
+
+	pass
+
+def findMatTreeNode(mat: bpy.types.Material, type: str):
 	for node in mat.node_tree.nodes:
 		if node.type == type:
 			return node
 	return None
 
-def getOrCreateNode(nodeName, nodeTree, nodeClassName, location=[0.0, 0.0]):
+def getOrCreateNode(nodeName, nodeTree: bpy.types.NodeTree, nodeClassName, location=[0.0, 0.0]):
 	node = nodeTree.nodes.get(nodeName)
 	if not node:
 		node = nodeTree.nodes.new(nodeClassName)
@@ -693,8 +868,9 @@ def getOrCreateNode(nodeName, nodeTree, nodeClassName, location=[0.0, 0.0]):
 		node.location = location
 	return node
 
-def getOrCreateTexNode(nodeName, nodeTree, interpolation='Closest', location=[0.0,0.0]):
-	texNode = nodeTree.nodes.get(nodeName)
+def getOrCreateTexNode(nodeName: str, nodeTree: bpy.types.NodeTree, 
+		interpolation='Closest', location=[0.0,0.0]) -> bpy.types.ShaderNodeTexImage:
+	texNode: bpy.types.ShaderNodeTexImage = nodeTree.nodes.get(nodeName)
 	if not texNode:
 		texNode = nodeTree.nodes.new('ShaderNodeTexImage')
 		texNode.name = nodeName
@@ -702,7 +878,7 @@ def getOrCreateTexNode(nodeName, nodeTree, interpolation='Closest', location=[0.
 		texNode.location = location
 	return texNode
 
-def fillRgbaRect(image, x0, y0, xSize, ySize, r, g, b, a):
+def fillRgbaRect(image: bpy.types.Image, x0, y0, xSize, ySize, r, g, b, a):
 	for y in range(0, ySize):
 		lineStart = (y0 + y) * image.size[0] * image.channels
 		offset = x0 * image.channels + lineStart
@@ -713,7 +889,7 @@ def fillRgbaRect(image, x0, y0, xSize, ySize, r, g, b, a):
 			image.pixels[offset + 3] = a
 			offset += image.channels
 
-def adjustOrCreateTexture(tex, sizeX: int, sizeY: int, numChannels: int, alpha: bool, newTexName: str, linear: bool):
+def adjustOrCreateTexture(tex: bpy.types.Image, sizeX: int, sizeY: int, numChannels: int, alpha: bool, newTexName: str, linear: bool):
 	if not tex or (tex and (tex.channels != numChannels)):
 		tex = bpy.data.images.new(
 			newTexName, 
@@ -727,18 +903,13 @@ def adjustOrCreateTexture(tex, sizeX: int, sizeY: int, numChannels: int, alpha: 
 		tex.scale(sizeX, sizeY)
 	return tex
 	
-
-albedoTexNodeName = 'multitex_albedo'
-metallicTexNodeName = 'multitex_metallic'
-emissiveTexNodeName = 'multitex_emissive'
-
 def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	if not mat.use_nodes:
 		print("Enabling nodes")
 		mat.use_nodes = True
 		
-	outputNode = findMatTreeNode(mat, 'OUTPUT_MATERIAL')
-	bsdfNode = findMatTreeNode(mat, 'BSDF_PRINCIPLED')
+	outputNode = findMatTreeNode(mat, MatNodeNames.outputMat)
+	bsdfNode = findMatTreeNode(mat, MatNodeNames.bsdf)
 	
 	nodeTree = mat.node_tree
 	
@@ -755,12 +926,12 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	if needToLink:
 		nodeTree.links.new(outputNode.inputs['Surface'], bsdfNode.outputs['BSDF'])
 		
-	albedoSocket = bsdfNode.inputs['Base Color']
-	metallicSocket = bsdfNode.inputs['Metallic']
-	roughnessSocket = bsdfNode.inputs['Roughness']
-	alphaSocket = bsdfNode.inputs['Alpha']
+	albedoSocket = bsdfNode.inputs[BsdfInputNames.albedo]
+	metallicSocket = bsdfNode.inputs[BsdfInputNames.metallic]
+	roughnessSocket = bsdfNode.inputs[BsdfInputNames.roughness]
+	alphaSocket = bsdfNode.inputs[BsdfInputNames.alpha]
 	
-	albedoTexNode = getOrCreateTexNode(albedoTexNodeName, 
+	albedoTexNode = getOrCreateTexNode(TexNodeNames.albedo, 
 		nodeTree, 'Closest', [-600.0, 100.0]
 	)
 		
@@ -768,7 +939,7 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	nodeTree.links.new(albedoTexNode.outputs['Alpha'], alphaSocket)
 	
 	#metallic chain
-	metallicTexNode = getOrCreateTexNode(metallicTexNodeName, 
+	metallicTexNode = getOrCreateTexNode(TexNodeNames.metallic, 
 		nodeTree, 'Closest', [-600.0, -200.0]
 	)
 	invertRoughnessNode = getOrCreateNode("multitex_roughness_invert", nodeTree,
@@ -795,12 +966,12 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 	)
 	emissiveMul1.operation = 'MULTIPLY'
 	nodeTree.links.new(emissiveMaxPower.outputs[0], emissiveMul1.inputs[1])
-	emissiveTexNode = getOrCreateTexNode(emissiveTexNodeName,
+	emissiveTexNode = getOrCreateTexNode(TexNodeNames.emissive,
 		nodeTree, 'Closest', [-600.0, -500.0]
 	)
 	nodeTree.links.new(emissiveTexNode.outputs['Alpha'], emissiveMul1.inputs[0])
-	nodeTree.links.new(emissiveMul1.outputs[0], bsdfNode.inputs['Emission Strength'])
-	nodeTree.links.new(emissiveTexNode.outputs['Color'], bsdfNode.inputs['Emission'])
+	nodeTree.links.new(emissiveMul1.outputs[0], bsdfNode.inputs[BsdfInputNames.emissionStrength])
+	nodeTree.links.new(emissiveTexNode.outputs['Color'], bsdfNode.inputs[BsdfInputNames.emission])
 		
 		
 	cellSize = props.cellSize
@@ -868,71 +1039,58 @@ def buildMultiTexMaterial(mat: bpy.types.Material, props: MultiTexProps):
 			fillRgbaRect(emissiveImage, rectX, rectY, cellSize, cellSize,
 				0.0, 0.0, 0.0, 1.0
 			)
-	pass    
-
-MATKEY_NAME = "name"
-MATKEY_ALBEDO_R = "albedoR"
-MATKEY_ALBEDO_G = "albedoG"
-MATKEY_ALBEDO_B = "albedoB"
-MATKEY_ALPHA = "alpha"
-MATKEY_EMISSIVE_R = "emissiveR"
-MATKEY_EMISSIVE_G = "emissiveG"
-MATKEY_EMISSIVE_B = "emissiveB"
-MATKEY_EMISSIVE_STRENGTH = "emissiveStrength"
-MATKEY_METALLIC = "metallic"
-MATKEY_ROUGHNESS = "roughness"
 
 def bsdfToJson(mat: bpy.types.Material, bsdfNode: bpy.types.Material):
-	albedoSocket: bpy.types.NodeSocket = bsdfNode.inputs['Base Color']
-	metallicSocket: bpy.types.NodeSocket = bsdfNode.inputs['Metallic']
-	roughnessSocket: bpy.types.NodeSocket = bsdfNode.inputs['Roughness']
-	alphaSocket: bpy.types.NodeSocket = bsdfNode.inputs['Alpha']
-	emissiveSocket: bpy.types.NodeSocket = bsdfNode.inputs['Emission']	
+	albedoSocket: bpy.types.NodeSocket = bsdfNode.inputs[BsdfInputNames.albedo]
+	metallicSocket: bpy.types.NodeSocket = bsdfNode.inputs[BsdfInputNames.metallic]
+	roughnessSocket: bpy.types.NodeSocket = bsdfNode.inputs[BsdfInputNames.roughness]
+	alphaSocket: bpy.types.NodeSocket = bsdfNode.inputs[BsdfInputNames.alpha]
+	emissiveSocket: bpy.types.NodeSocket = bsdfNode.inputs[BsdfInputNames.emission]
 
 	data = {
-		MATKEY_NAME: mat.name,
-		MATKEY_ALBEDO_R: albedoSocket.default_value[0],
-		MATKEY_ALBEDO_G: albedoSocket.default_value[1],
-		MATKEY_ALBEDO_B: albedoSocket.default_value[2],
-		MATKEY_ALPHA: alphaSocket.default_value,
-		MATKEY_EMISSIVE_R: emissiveSocket.default_value[0],
-		MATKEY_EMISSIVE_G: emissiveSocket.default_value[1],
-		MATKEY_EMISSIVE_B: emissiveSocket.default_value[2],
-		MATKEY_EMISSIVE_STRENGTH: bsdfNode.inputs['Emission Strength'].default_value,
-		MATKEY_METALLIC: metallicSocket.default_value,
-		MATKEY_ROUGHNESS: roughnessSocket.default_value
+		MatKeys.NAME: mat.name,
+		MatKeys.ALBEDO_R: albedoSocket.default_value[0],
+		MatKeys.ALBEDO_G: albedoSocket.default_value[1],
+		MatKeys.ALBEDO_B: albedoSocket.default_value[2],
+		MatKeys.ALPHA: alphaSocket.default_value,
+		MatKeys.EMISSIVE_R: emissiveSocket.default_value[0],
+		MatKeys.EMISSIVE_G: emissiveSocket.default_value[1],
+		MatKeys.EMISSIVE_B: emissiveSocket.default_value[2],
+		MatKeys.EMISSIVE_STRENGTH: bsdfNode.inputs[BsdfInputNames.emissionStrength].default_value,
+		MatKeys.METALLIC: metallicSocket.default_value,
+		MatKeys.ROUGHNESS: roughnessSocket.default_value
 	}
 	return json.dumps(data, indent=4)
 
 def subMatToJson(sm: MultiTexSubMatProps):
 	data = {
-		MATKEY_NAME: sm.name,
-		MATKEY_ALBEDO_R: sm.albedo[0],
-		MATKEY_ALBEDO_G: sm.albedo[1],
-		MATKEY_ALBEDO_B: sm.albedo[2],
-		MATKEY_ALPHA: sm.alpha,
-		MATKEY_EMISSIVE_R: sm.emissive[0],
-		MATKEY_EMISSIVE_G: sm.emissive[1],
-		MATKEY_EMISSIVE_B: sm.emissive[2],
-		MATKEY_EMISSIVE_STRENGTH: sm.emission_strength,
-		MATKEY_METALLIC: sm.metallic,
-		MATKEY_ROUGHNESS: sm.roughness
+		MatKeys.NAME: sm.name,
+		MatKeys.ALBEDO_R: sm.albedo[0],
+		MatKeys.ALBEDO_G: sm.albedo[1],
+		MatKeys.ALBEDO_B: sm.albedo[2],
+		MatKeys.ALPHA: sm.alpha,
+		MatKeys.EMISSIVE_R: sm.emissive[0],
+		MatKeys.EMISSIVE_G: sm.emissive[1],
+		MatKeys.EMISSIVE_B: sm.emissive[2],
+		MatKeys.EMISSIVE_STRENGTH: sm.emission_strength,
+		MatKeys.METALLIC: sm.metallic,
+		MatKeys.ROUGHNESS: sm.roughness
 	}
 	return json.dumps(data, indent=4)
 
 def jsonToSubMat(sm: MultiTexSubMatProps, js: str):
 	data:dict = json.loads(js)
-	sm.name = data.get(MATKEY_NAME, sm.name)
-	sm.albedo[0] = data.get(MATKEY_ALBEDO_R, sm.albedo[0])
-	sm.albedo[1] = data.get(MATKEY_ALBEDO_G, sm.albedo[1])
-	sm.albedo[2] = data.get(MATKEY_ALBEDO_B, sm.albedo[2])
-	sm.alpha = data.get(MATKEY_ALPHA, sm.alpha)
-	sm.emissive[0] = data.get(MATKEY_EMISSIVE_R, sm.emissive[0])
-	sm.emissive[1] = data.get(MATKEY_EMISSIVE_G, sm.emissive[1])
-	sm.emissive[2] = data.get(MATKEY_EMISSIVE_B, sm.emissive[2])
-	sm.emission_strength = data.get(MATKEY_EMISSIVE_STRENGTH, sm.emission_strength)
-	sm.metallic = data.get(MATKEY_METALLIC, sm.metallic)
-	sm.roughness = data.get(MATKEY_ROUGHNESS, sm.roughness)
+	sm.subMatName = data.get(MatKeys.NAME, sm.name)
+	sm.albedo[0] = data.get(MatKeys.ALBEDO_R, sm.albedo[0])
+	sm.albedo[1] = data.get(MatKeys.ALBEDO_G, sm.albedo[1])
+	sm.albedo[2] = data.get(MatKeys.ALBEDO_B, sm.albedo[2])
+	sm.alpha = data.get(MatKeys.ALPHA, sm.alpha)
+	sm.emissive[0] = data.get(MatKeys.EMISSIVE_R, sm.emissive[0])
+	sm.emissive[1] = data.get(MatKeys.EMISSIVE_G, sm.emissive[1])
+	sm.emissive[2] = data.get(MatKeys.EMISSIVE_B, sm.emissive[2])
+	sm.emission_strength = data.get(MatKeys.EMISSIVE_STRENGTH, sm.emission_strength)
+	sm.metallic = data.get(MatKeys.METALLIC, sm.metallic)
+	sm.roughness = data.get(MatKeys.ROUGHNESS, sm.roughness)
 
 class MultiTexPanel(bpy.types.Panel):
 	bl_idname = "OBJECT_PT_multitex_panel"
@@ -943,7 +1101,7 @@ class MultiTexPanel(bpy.types.Panel):
 	
 	@classmethod
 	def poll(self, context):
-		return contextHasData(context)
+		return Utils.contextHasData(context)
 	
 	def drawSubmat(self, layout, submat, index):
 		subLayout = layout.box()
@@ -1002,8 +1160,8 @@ class MultiTexPanel(bpy.types.Panel):
 	
 	def draw(self, context):
 		layout = self.layout
-		obj = getObjectFromContext(context)
-		props = getObjectProps(obj)
+		obj = Utils.getObjectFromContext(context)
+		props = Utils.getObjectProps(obj)
 
 		layout.operator(MultiTexCopyMat.bl_idname)
 		
@@ -1065,12 +1223,21 @@ classes = (
 	MultiTexCopyMat,
 	MultiTexCopySubMat,
 	MultiTexPasteSubMat,
-	MultiTexPanel
+	MultiTexPanel,
+	MultiTexCombineMeshes
+)
+
+objectMenuClasses = (
+	MultiTexCombineMeshes,
 )
 
 def register():
 	for cls in classes:
 		bpy.utils.register_class(cls)
+
+	for cls in objectMenuClasses:
+		bpy.types.VIEW3D_MT_object.append(lambda self, context, cls=cls: self.layout.operator(cls.bl_idname))
+
 	bpy.types.Material.multiTexProps = bpy.props.PointerProperty(type=MultiTexProps)
 	pass
 
